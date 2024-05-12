@@ -23,11 +23,19 @@
       return window.location.hostname;
     }
 
+    function getCheckUrlTemplate(url?: string, port?: number): string {
+      if (url) {
+        return `http://${url}:${port || 8002}/api/canaccess`;
+      }
+      return `http://${getSiteUrl()}:${port || 8002}/api/canaccess`;
+    }
+
     function getCheckUrl(url?: string) {
-        if (url) {
-            return 'http://' + url + ':9001/api/canaccess';
-        }
-      return 'http://' + getSiteUrl() + ':9001/api/canaccess';
+        return getCheckUrlTemplate(url, 8002);
+    }
+
+    function getKCDUrl(url?: string) {
+        return getCheckUrlTemplate(url, 8003);
     }
 
     onMount(() => {
@@ -36,7 +44,15 @@
       axios.post(siteUrl, {})
         .then((response) => {
             if (response.status === 200) {
-                showPopup();
+                axios.post(getKCDUrl(), {})
+                    .then((response) => {
+                        if (response.status === 200) {
+                            showPopup();
+                        }
+                    })
+                    .catch((error) => {
+                        console.log(error);
+                    });
             }
         })
         .catch((error) => {
@@ -55,8 +71,16 @@
             .then((response) => {
                 console.log(response);
                 if (response.status === 200) {
-                    localStorage.setItem(localStorageKey, ipAddress);
-                    window.location.href = '/login';
+                    axios.post(getKCDUrl(ipAddress), {})
+                        .then((response) => {
+                            if (response.status === 200) {
+                                localStorage.setItem(localStorageKey, ipAddress);
+                                window.location.href = '/login';
+                            }
+                        })
+                        .catch((error) => {
+                            console.log(error);
+                        });
                 }
             })
             .catch((error) => {

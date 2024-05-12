@@ -2,17 +2,19 @@
     import { onMount } from 'svelte';
 	import AnimatedButton from "./AnimatedButton.svelte";
     import axios from 'axios';
+    import { MiniRSA } from '../crypto/miniRSA';
   
     const localStorageKey = 'ipAddress';
     const url = localStorage.getItem(localStorageKey);
-    const wsUrl = `http://${url}:9001/api/login`;
-    let username = '';
+    const wsUrl = `http://${url}:8002/api/join`;
+    const kdcUrl = `http://${url}:8003/api/verify`;
+    let name = '';
     let password = '';
 
     let token: string;
 
     function getCheckUrl() {
-        return 'http://' + url + ':9001/api/canaccess';
+        return 'http://' + url + ':8002/api/canaccess';
     }
 
     onMount(() => {
@@ -32,7 +34,7 @@
 
     function handleLogin() {
         axios.post(wsUrl, {
-            username: username,
+            name: name,
             password: password
         })
         .then((response) => {
@@ -43,7 +45,29 @@
             }
             token = response.data.token;
             localStorage.setItem('token', token);
-            window.location.href = '/chat';
+            let rsa = new MiniRSA();
+            localStorage.setItem('rsa', JSON.stringify(rsa.key));
+            localStorage.setItem('waiting', 'false');
+            axios.post(kdcUrl, {
+                token: parseInt(token),
+                nonce: Date.now(),
+                publicKey: [rsa.key[0], rsa.key[2]]
+            })
+            .then((response) => {
+                console.log(response);
+                if (response.status !== 200) {
+                    console.log(response.data.error)
+                    return;
+                }
+                let encryptedA = response.data.encryptedA;
+                let encryptedB = response.data.encryptedB;
+                localStorage.setItem('encryptedB', encryptedB);
+                let decrypted = rsa.decrypt(encryptedA);
+                let obj = JSON.parse(decrypted);
+                let sessionKey = obj.sessionKey;
+                localStorage.setItem('sessionKey', sessionKey);
+                window.location.href = '/chat';
+            })
         })
         .catch((error) => {
             console.log(error);
@@ -62,9 +86,9 @@
 <div class="container">
     <div class="wrapper">
         <form action="">
-            <h1>Login</h1>
+            <h1>Join Room</h1>
             <div class="input-box">
-                <input type="text" placeholder="Username" bind:value={username} required/>
+                <input type="text" placeholder="Room name" bind:value={name} required/>
                 <i class='bx bxs-user'></i>
             </div>
     
@@ -76,7 +100,7 @@
             <AnimatedButton onClick={handleLogin} text="Login" />
     
             <div class="register-link">
-                <p>Don't have an account? <a href="#top" on:click={handleRegister}>Register</a></p>
+                <p>New room <a href="#top" on:click={handleRegister}>Create</a></p>
                 <br>
                 <p>Server: {url}</p>
                 <p><a href="#top" on:click={handleServerChange}>Change server</a></p>

@@ -2,16 +2,19 @@
     import { onMount } from 'svelte';
 	import AnimatedButton from "./AnimatedButton.svelte";
     import axios from 'axios';
+    import { MiniRSA } from '../crypto/miniRSA';
   
     const localStorageKey = 'ipAddress';
     const url = localStorage.getItem(localStorageKey);
-    const wsUrl = `http://${url}:9001/api/register`;
-    let username = '';
+    const wsUrl = `http://${url}:8002/api/new`;
+    const kdcUrl = `http://${url}:8003/api/new`;
+    let name = '';
     let password = '';
-    let confirmPassword = '';
+
+    let token: string;
 
     function getCheckUrl() {
-        return 'http://' + url + ':9001/api/canaccess';
+        return 'http://' + url + ':8002/api/canaccess';
     }
 
     onMount(() => {
@@ -30,12 +33,8 @@
     });
 
     function handleRegister() {
-        if (password !== confirmPassword) {
-        console.error('Error: Passwords do not match');
-        return;
-        }
         axios.post(wsUrl, {
-            username: username,
+            name: name,
             password: password
         })
         .then((response) => {
@@ -44,7 +43,23 @@
                 console.log(response.data.error)
                 return;
             }
-            window.location.href = '/login';
+            token = response.data.token;
+            localStorage.setItem('token', token);
+            let rsa = new MiniRSA();
+            localStorage.setItem('rsa', JSON.stringify(rsa.key));
+            localStorage.setItem('waiting', 'true');
+            axios.post(kdcUrl, {
+                token: parseInt(token),
+                publicKey: [rsa.key[0], rsa.key[2]]
+            })
+            .then((response) => {
+                console.log(response);
+                if (response.status !== 200) {
+                    console.log(response.data.error)
+                    return;
+                }
+                window.location.href = '/chat';
+            })
         })
         .catch((error) => {
             console.log(error);
@@ -62,9 +77,9 @@
 <div class="container">
     <div class="wrapper">
         <form action="">
-            <h1>Sign up</h1>
+            <h1>Create new room</h1>
             <div class="input-box">
-                <input type="text" placeholder="Username" bind:value={username} required/>
+                <input type="text" placeholder="Username" bind:value={name} required/>
                 <i class='bx bxs-user'></i>
             </div>
     
@@ -72,16 +87,11 @@
                 <input type="password" placeholder="Password" bind:value={password} required/>
                 <i class='bx bxs-lock-alt' ></i>
             </div>
-
-            <div class="input-box">
-                <input type="password" placeholder="Confirm password" bind:value={confirmPassword} required/>
-                <i class='bx bxs-lock-alt' ></i>
-            </div>
             
             <AnimatedButton onClick={handleRegister} text="Register" />
                 
             <div class="register-link">
-                <p>Already have an account? <a href="#top" on:click={handleLogin}>Login</a></p>
+                <p>Existing room <a href="#top" on:click={handleLogin}>Join</a></p>
                 <br>
                 <p>Server: {url}</p>
                 <p><a href="#top" on:click={handleServerChange}>Change server</a></p>
