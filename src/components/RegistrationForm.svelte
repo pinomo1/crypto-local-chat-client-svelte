@@ -79,7 +79,7 @@
         <form action="">
             <h1>Create new room</h1>
             <div class="input-box">
-                <input type="text" placeholder="Username" bind:value={name} required/>
+                <input type="text" placeholder="Room name" bind:value={name} required/>
                 <i class='bx bxs-user'></i>
             </div>
     
